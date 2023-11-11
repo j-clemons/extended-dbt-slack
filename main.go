@@ -7,10 +7,43 @@ import (
     "log"
     "io"
     "strings"
+    "encoding/json"
 
     "github.com/joho/godotenv"
     "github.com/slack-go/slack"
 )
+
+type DBTRunWebhook struct {
+    JobID     string
+    RunStatus string
+}
+
+func parseDBTWebhook(webhook string) DBTRunWebhook {
+    var hookJSON map[string]any
+
+    err := json.Unmarshal([]byte(webhook), &hookJSON)
+    if err != nil {
+        log.Println("Error decoding webhook")
+        log.Fatal(err)
+    }
+
+    jobID, ok := hookJSON["data"].(map[string]any)["jobId"]
+    if ok == false {
+        log.Fatal("jobId does not exist in hookJSON")
+    }
+
+    runStatus, ok := hookJSON["data"].(map[string]any)["runStatus"]
+    if ok == false {
+        log.Fatal("runStatus does not exist in hookJSON")
+    }
+
+    wh := DBTRunWebhook{
+        JobID:     jobID.(string),
+        RunStatus: runStatus.(string),
+    }
+
+    return wh
+}
 
 func parseLogs(logStr string) ([]string, []string) {
     r, _ := regexp.Compile(`(?:ERROR creating).*?(?:\.\w{1,})`)
