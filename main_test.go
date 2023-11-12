@@ -5,8 +5,7 @@ import (
 )
 
 func TestParseDBTWebhook(t *testing.T) {
-    i := `
-    {
+    i := `{
         "accountId": 1,
         "webhooksID": "wsu_12345abcde",
         "eventId": "wev_2L6m5BggBw9uPNuSmtg4MUiW4Re",
@@ -35,7 +34,7 @@ func TestParseDBTWebhook(t *testing.T) {
         JobID: "123",
         RunStatus: "Errored",
     }
-    actual := parseDBTWebhook(i)
+    actual := parseDBTWebhook([]byte(i))
 
     if actual != expected {
         t.Errorf("got: %q; want: %q", actual, expected)
