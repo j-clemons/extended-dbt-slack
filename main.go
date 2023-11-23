@@ -22,6 +22,94 @@ type DBTRunWebhook struct {
     RunStatus string
 }
 
+type DBTRunResults struct {
+	Status struct {
+		Code             int    `json:"code"`
+		IsSuccess        bool   `json:"is_success"`
+		UserMessage      string `json:"user_message"`
+		DeveloperMessage string `json:"developer_message"`
+	} `json:"status"`
+	Data struct {
+		ID                  int    `json:"id"`
+		TriggerID           int    `json:"trigger_id"`
+		AccountID           int    `json:"account_id"`
+		EnvironmentID       int    `json:"environment_id"`
+		ProjectID           int    `json:"project_id"`
+		JobDefinitionID     int    `json:"job_definition_id"`
+		Status              int    `json:"status"`
+		DbtVersion          string `json:"dbt_version"`
+		GitBranch           string `json:"git_branch"`
+		GitSha              string `json:"git_sha"`
+		StatusMessage       any    `json:"status_message"`
+		OwnerThreadID       any    `json:"owner_thread_id"`
+		ExecutedByThreadID  string `json:"executed_by_thread_id"`
+		DeferringRunID      any    `json:"deferring_run_id"`
+		ArtifactsSaved      bool   `json:"artifacts_saved"`
+		ArtifactS3Path      string `json:"artifact_s3_path"`
+		HasDocsGenerated    bool   `json:"has_docs_generated"`
+		HasSourcesGenerated bool   `json:"has_sources_generated"`
+		NotificationsSent   bool   `json:"notifications_sent"`
+		BlockedBy           []any  `json:"blocked_by"`
+		ScribeEnabled       bool   `json:"scribe_enabled"`
+		CreatedAt           string `json:"created_at"`
+		UpdatedAt           string `json:"updated_at"`
+		DequeuedAt          string `json:"dequeued_at"`
+		StartedAt           string `json:"started_at"`
+		FinishedAt          string `json:"finished_at"`
+		LastCheckedAt       string `json:"last_checked_at"`
+		LastHeartbeatAt     string `json:"last_heartbeat_at"`
+		ShouldStartAt       string `json:"should_start_at"`
+		Trigger             any    `json:"trigger"`
+		Job                 any    `json:"job"`
+		Environment         any    `json:"environment"`
+		RunSteps            []struct {
+			ID                 int    `json:"id"`
+			RunID              int    `json:"run_id"`
+			AccountID          int    `json:"account_id"`
+			Index              int    `json:"index"`
+			Status             int    `json:"status"`
+			Name               string `json:"name"`
+			Logs               string `json:"logs"`
+			DebugLogs          string `json:"debug_logs"`
+			LogLocation        string `json:"log_location"`
+			LogPath            string `json:"log_path"`
+			DebugLogPath       string `json:"debug_log_path"`
+			LogArchiveType     string `json:"log_archive_type"`
+			TruncatedDebugLogs string `json:"truncated_debug_logs"`
+			CreatedAt          string `json:"created_at"`
+			UpdatedAt          string `json:"updated_at"`
+			StartedAt          string `json:"started_at"`
+			FinishedAt         string `json:"finished_at"`
+			StatusColor        string `json:"status_color"`
+			StatusHumanized    string `json:"status_humanized"`
+			Duration           string `json:"duration"`
+			DurationHumanized  string `json:"duration_humanized"`
+			RunStepCommand     any    `json:"run_step_command"`
+		} `json:"run_steps"`
+		StatusHumanized         string `json:"status_humanized"`
+		InProgress              bool   `json:"in_progress"`
+		IsComplete              bool   `json:"is_complete"`
+		IsSuccess               bool   `json:"is_success"`
+		IsError                 bool   `json:"is_error"`
+		IsCancelled             bool   `json:"is_cancelled"`
+		Duration                string `json:"duration"`
+		QueuedDuration          string `json:"queued_duration"`
+		RunDuration             string `json:"run_duration"`
+		DurationHumanized       string `json:"duration_humanized"`
+		QueuedDurationHumanized string `json:"queued_duration_humanized"`
+		RunDurationHumanized    string `json:"run_duration_humanized"`
+		CreatedAtHumanized      string `json:"created_at_humanized"`
+		FinishedAtHumanized     string `json:"finished_at_humanized"`
+		RetryingRunID           any    `json:"retrying_run_id"`
+		CanRetry                bool   `json:"can_retry"`
+		RetryNotSupportedReason any    `json:"retry_not_supported_reason"`
+		JobID                   int    `json:"job_id"`
+		IsRunning               any    `json:"is_running"`
+		Href                    string `json:"href"`
+		UsedRepoCache           any    `json:"used_repo_cache"`
+	} `json:"data"`
+}
+
 func parseDBTWebhook(webhook []byte) DBTRunWebhook {
     var hookJSON map[string]any
 
@@ -49,7 +137,7 @@ func parseDBTWebhook(webhook []byte) DBTRunWebhook {
     return wh
 }
 
-func getDBTRunResults(h DBTRunWebhook) string {
+func getDBTRunResults(h DBTRunWebhook) {
     err := godotenv.Load(".env")
     if err != nil {
         log.Fatal(err)
@@ -84,46 +172,46 @@ func getDBTRunResults(h DBTRunWebhook) string {
     }
     defer resp.Body.Close()
 
-    var bodyJSON map[string]any
-
     body, err := io.ReadAll(resp.Body)
     if err != nil {
         log.Fatal(err)
-        return ""
     }
 
     if resp.StatusCode != 200 {
         log.Fatal(string(body))
     }
 
-    err = json.Unmarshal([]byte(body), &bodyJSON)
+    r := DBTRunResults{}
+    err = json.Unmarshal([]byte(body), &r)
     if err != nil {
-        log.Fatal(err)
+        log.Fatalf("Unmarshal error: %q", err)
     }
 
-    runSteps, ok := bodyJSON["data"].(map[string]any)["run_steps"]
-    if ok == false {
-        log.Fatal("run_steps does not exist in response")
-        return ""
+    for _, d := range r.Data.RunSteps {
+        sum, details := parseLogs(d.Logs)
+        if len(sum) > 0 {
+            postMessages(sum, details)
+        }
     }
-
-    fmt.Print(runSteps)
-    // for i := range runSteps {
-    //
-    // }
-
-    // return the detail string (matching CLI output)
-    return ""
 }
 
 func parseLogs(logStr string) ([]string, []string) {
-    r, _ := regexp.Compile(`(?:ERROR creating).*?(?:\.\w{1,})`)
-    summary_lines := r.FindAllString(logStr, -1)
+    summaryLines := []string{}
+
+    summaryRegexp := []string{
+        `(?:ERROR creating).*?(?:\.\w{1,})`,
+        `(?:FAIL).*?(?:\_\w{1,})`,
+    }
+
+    for sr := range summaryRegexp {
+        r, _ := regexp.Compile(summaryRegexp[sr])
+        summaryLines = append(summaryLines, r.FindAllString(logStr, -1)...)
+    }
 
     details, _ := regexp.Compile(`(.*(Failure|Error) in .*\n.*\n.*)`)
-    detail_lines := details.FindAllString(logStr, -1)
+    detailLines := details.FindAllString(logStr, -1)
 
-    return summary_lines, detail_lines
+    return summaryLines, detailLines
 }
 
 func postMessageThread(threadTS string, detail string) {
@@ -185,6 +273,14 @@ func formatMessages(msgLines []string) string {
     return strings.Join(msgLines[:], "\n")
 }
 
+func postMessages(summary []string, details []string) {
+    ts := postMessage(formatMessages(summary))
+
+    for i := range details {
+        postMessageThread(ts, details[i])
+    }
+}
+
 func cliParse() {
     t, err := io.ReadAll(os.Stdin)
     if err != nil {
@@ -193,11 +289,7 @@ func cliParse() {
 
     summary, details := parseLogs(string(t))
 
-    ts := postMessage(formatMessages(summary))
-
-    for i := range details {
-        postMessageThread(ts, details[i])
-    }
+    postMessages(summary, details)
 }
 
 func main() {
@@ -213,12 +305,12 @@ func main() {
         app.Post("/dbtrunwebhook", func(c *fiber.Ctx) error {
             hook := parseDBTWebhook(c.Body())
 
-            // if hook.RunStatus == "Errored" {
-            // }
-
-            fmt.Printf("runId %q, status %q", hook.RunID, hook.RunStatus)
-
-            return c.SendStatus(200)
+            if hook.RunStatus == "Errored" {
+                return c.SendStatus(200)
+            } else {
+                getDBTRunResults(hook)
+                return c.SendStatus(200)
+            }
         })
 
         app.Listen(":3000")

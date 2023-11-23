@@ -36,8 +36,6 @@ func TestParseDBTWebhook(t *testing.T) {
     }
     actual := parseDBTWebhook([]byte(i))
 
-    getDBTRunResults(expected)
-
     if actual != expected {
         t.Errorf("got: %q; want: %q", actual, expected)
     }
