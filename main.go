@@ -187,11 +187,16 @@ func getDBTRunResults(h DBTRunWebhook) {
         log.Fatalf("Unmarshal error: %q", err)
     }
 
+    summaryOut := []string{}
+    detailsOut := []string{}
     for _, d := range r.Data.RunSteps {
-        sum, details := parseLogs(d.Logs)
-        if len(sum) > 0 {
-            postMessages(sum, details)
-        }
+        summary, details := parseLogs(d.Logs)
+        summaryOut = append(summaryOut, summary...)
+        detailsOut = append(detailsOut, details...)
+    }
+
+    if len(summaryOut) > 0 {
+        postMessages(summaryOut, detailsOut)
     }
 }
 
