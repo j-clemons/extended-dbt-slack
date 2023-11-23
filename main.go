@@ -216,6 +216,14 @@ func parseLogs(logStr string) ([]string, []string) {
     details, _ := regexp.Compile(`(.*(Failure|Error) in .*\n.*\n.*)`)
     detailLines := details.FindAllString(logStr, -1)
 
+    for i := range summaryLines {
+        summaryLines[i] = stripANSIColors(summaryLines[i])
+    }
+
+    for i := range detailLines {
+        detailLines[i] = stripANSIColors(detailLines[i])
+    }
+
     return summaryLines, detailLines
 }
 
@@ -276,6 +284,15 @@ func postMessage(msg string) string {
 
 func formatMessages(msgLines []string) string {
     return strings.Join(msgLines[:], "\n")
+}
+
+func stripANSIColors(str string) string {
+    returnStr := strings.Replace(str, "\u001b[0m", "", -1)
+    returnStr = strings.Replace(returnStr, "\u001b[31m", "", -1)
+    returnStr = strings.Replace(returnStr, "\u001b[32m", "", -1)
+    returnStr = strings.Replace(returnStr, "\u001b[33m", "", -1)
+
+    return returnStr
 }
 
 func postMessages(summary []string, details []string) {
