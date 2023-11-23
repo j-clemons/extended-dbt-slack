@@ -15,7 +15,7 @@ func TestParseDBTWebhook(t *testing.T) {
         "data": {
             "jobId": "123",
             "jobName": "dbt Vault",
-            "runId": "12345",
+            "runId": "218726483",
             "environmentId": "1234",
             "environmentName": "dbt Vault Demo",
             "dbtVersion": "1.0.0",
@@ -31,13 +31,31 @@ func TestParseDBTWebhook(t *testing.T) {
     }`
 
     expected := DBTRunWebhook{
-        JobID: "123",
+        RunID: "218726483",
         RunStatus: "Errored",
     }
     actual := parseDBTWebhook([]byte(i))
+
+    getDBTRunResults(expected)
 
     if actual != expected {
         t.Errorf("got: %q; want: %q", actual, expected)
     }
 
 }
+
+func TestGetDBTRunResults(t *testing.T) {
+    actual := 1
+    expected := 2
+
+    inputHook := DBTRunWebhook{
+        RunID: "219793804",
+        RunStatus: "Errored",
+    }
+    getDBTRunResults(inputHook)
+
+    if actual != expected {
+        t.Errorf("got: %q; want: %q", actual, expected)
+    }
+}
+

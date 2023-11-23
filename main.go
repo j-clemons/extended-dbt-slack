@@ -10,6 +10,7 @@ import (
     "strings"
     "encoding/json"
     "net/http"
+    "net/url"
 
     "github.com/joho/godotenv"
     "github.com/slack-go/slack"
@@ -17,7 +18,7 @@ import (
 )
 
 type DBTRunWebhook struct {
-    JobID     string
+    RunID     string
     RunStatus string
 }
 
@@ -30,9 +31,9 @@ func parseDBTWebhook(webhook []byte) DBTRunWebhook {
         log.Fatal(err)
     }
 
-    jobID, ok := hookJSON["data"].(map[string]any)["jobId"]
+    runID, ok := hookJSON["data"].(map[string]any)["runId"]
     if ok == false {
-        log.Fatal("jobId does not exist in hookJSON")
+        log.Fatal("runId does not exist in hookJSON")
     }
 
     runStatus, ok := hookJSON["data"].(map[string]any)["runStatus"]
@@ -41,7 +42,7 @@ func parseDBTWebhook(webhook []byte) DBTRunWebhook {
     }
 
     wh := DBTRunWebhook{
-        JobID:     jobID.(string),
+        RunID:     runID.(string),
         RunStatus: runStatus.(string),
     }
 
@@ -49,16 +50,31 @@ func parseDBTWebhook(webhook []byte) DBTRunWebhook {
 }
 
 func getDBTRunResults(h DBTRunWebhook) string {
+    err := godotenv.Load(".env")
+    if err != nil {
+        log.Fatal(err)
+    }
+
     account_id := os.Getenv("DBT_ACCOUNT_ID")
-    url := fmt.Sprintf(
-        "https://cloud.getdbt.com/api/v2/accounts/%q/runs/%q/?include_related=['run_steps']",
+    endpoint := fmt.Sprintf(
+        "https://cloud.getdbt.com/api/v2/accounts/%s/runs/%s/",
         account_id,
-        h.JobID,
+        h.RunID,
     )
 
-    bearer := fmt.Sprintf("Bearer %q", os.Getenv("DBT_TOKEN"))
+    bearer := fmt.Sprintf("Bearer %s", os.Getenv("DBT_AUTH_TOKEN"))
 
-    req, err := http.NewRequest("GET", url, nil)
+    uri, err := url.ParseRequestURI(endpoint)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    data := uri.Query()
+    data.Set("include_related", "['run_steps']")
+    uri.RawQuery = data.Encode()
+
+    req, err := http.NewRequest(http.MethodGet, uri.String(), nil)
+    req.Header.Add("Content-Type", "application/json")
     req.Header.Add("Authorization", bearer)
 
     client := &http.Client{}
@@ -68,14 +84,33 @@ func getDBTRunResults(h DBTRunWebhook) string {
     }
     defer resp.Body.Close()
 
-    // var bodyJSON map[string]any
-    //
-    // err = json.Unmarshal(resp.Body, &bodyJSON)
-    // if err != nil {
-    //     log.Fatal(err)
-    // }
+    var bodyJSON map[string]any
 
-    // runSteps, ok := bodyJSON["data"].(map[string]any)["run_steps"]
+    body, err := io.ReadAll(resp.Body)
+    if err != nil {
+        log.Fatal(err)
+        return ""
+    }
+
+    if resp.StatusCode != 200 {
+        log.Fatal(string(body))
+    }
+
+    err = json.Unmarshal([]byte(body), &bodyJSON)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    runSteps, ok := bodyJSON["data"].(map[string]any)["run_steps"]
+    if ok == false {
+        log.Fatal("run_steps does not exist in response")
+        return ""
+    }
+
+    fmt.Print(runSteps)
+    // for i := range runSteps {
+    //
+    // }
 
     // return the detail string (matching CLI output)
     return ""
@@ -181,7 +216,7 @@ func main() {
             // if hook.RunStatus == "Errored" {
             // }
 
-            fmt.Printf("jobId %q, status %q", hook.JobID, hook.RunStatus)
+            fmt.Printf("runId %q, status %q", hook.RunID, hook.RunStatus)
 
             return c.SendStatus(200)
         })
