@@ -18,8 +18,28 @@ import (
 )
 
 type DBTRunWebhook struct {
-    RunID     string
-    RunStatus string
+	AccountID   int       `json:"accountId"`
+	WebhooksID  string    `json:"webhooksID"`
+	EventID     string    `json:"eventId"`
+	Timestamp   string    `json:"timestamp"`
+	EventType   string    `json:"eventType"`
+	WebhookName string    `json:"webhookName"`
+	Data struct {
+        JobID            string    `json:"jobId"`
+        JobName          string    `json:"jobName"`
+        RunID            string    `json:"runId"`
+        EnvironmentID    string    `json:"environmentId"`
+        EnvironmentName  string    `json:"environmentName"`
+        DbtVersion       string    `json:"dbtVersion"`
+        ProjectName      string    `json:"projectName"`
+        ProjectID        string    `json:"projectId"`
+        RunStatus        string    `json:"runStatus"`
+        RunStatusCode    int       `json:"runStatusCode"`
+        RunStatusMessage string    `json:"runStatusMessage"`
+        RunReason        string    `json:"runReason"`
+        RunStartedAt     string    `json:"runStartedAt"`
+        RunErroredAt     string    `json:"runErroredAt"`
+    } `json:"data"`
 }
 
 type DBTRunResults struct {
@@ -111,27 +131,12 @@ type DBTRunResults struct {
 }
 
 func parseDBTWebhook(webhook []byte) DBTRunWebhook {
-    var hookJSON map[string]any
+    log.Println("Webhook received.")
 
-    err := json.Unmarshal(webhook, &hookJSON)
+    wh := DBTRunWebhook{}
+    err := json.Unmarshal(webhook, &wh)
     if err != nil {
-        log.Println("Error decoding webhook")
-        log.Fatal(err)
-    }
-
-    runID, ok := hookJSON["data"].(map[string]any)["runId"]
-    if ok == false {
-        log.Fatal("runId does not exist in hookJSON")
-    }
-
-    runStatus, ok := hookJSON["data"].(map[string]any)["runStatus"]
-    if ok == false {
-        log.Fatal("runStatus does not exist in hookJSON")
-    }
-
-    wh := DBTRunWebhook{
-        RunID:     runID.(string),
-        RunStatus: runStatus.(string),
+        log.Fatalf("Unmarshal error: %q", err)
     }
 
     return wh
@@ -147,7 +152,7 @@ func getDBTRunResults(h DBTRunWebhook) {
     endpoint := fmt.Sprintf(
         "https://cloud.getdbt.com/api/v2/accounts/%s/runs/%s/",
         account_id,
-        h.RunID,
+        h.Data.RunID,
     )
 
     bearer := fmt.Sprintf("Bearer %s", os.Getenv("DBT_AUTH_TOKEN"))
@@ -188,10 +193,46 @@ func getDBTRunResults(h DBTRunWebhook) {
     }
 
     summaryOut := []string{}
+    summaryL1 := fmt.Sprintf(
+        `
+*<%s|Run #%s %s on Job "%s">*
+
+*Environment:* %s
+*Trigger:* %s
+*Duration:* %s
+        `,
+        r.Data.Href,
+        h.Data.RunID,
+        h.Data.RunStatus,
+        h.Data.JobName,
+        h.Data.EnvironmentName,
+        h.Data.RunReason,
+        r.Data.DurationHumanized,
+    )
+
+    summaryOut = append(summaryOut, summaryL1)
+
     detailsOut := []string{}
     for _, d := range r.Data.RunSteps {
-        summary, details := parseLogs(d.Logs)
-        summaryOut = append(summaryOut, summary...)
+        if d.StatusHumanized == "Success" {
+            stepSummary := fmt.Sprintf(
+                ">:white_check_mark: %s (%s in %s)",
+                d.Name,
+                d.StatusHumanized,
+                d.DurationHumanized,
+            )
+            summaryOut = append(summaryOut, stepSummary)
+        } else {
+            stepSummary := fmt.Sprintf(
+                ">:x: %s (%s in %s)",
+                d.Name,
+                d.StatusHumanized,
+                d.DurationHumanized,
+            )
+            summaryOut = append(summaryOut, stepSummary)
+        }
+
+        _, details := parseLogs(d.Logs)
         detailsOut = append(detailsOut, details...)
     }
 
@@ -327,7 +368,7 @@ func main() {
         app.Post("/dbtrunwebhook", func(c *fiber.Ctx) error {
             hook := parseDBTWebhook(c.Body())
 
-            if hook.RunStatus == "Errored" {
+            if hook.Data.RunStatus == "Errored" {
                 return c.SendStatus(200)
             } else {
                 getDBTRunResults(hook)
