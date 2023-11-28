@@ -369,9 +369,9 @@ func main() {
             hook := parseDBTWebhook(c.Body())
 
             if hook.Data.RunStatus == "Errored" {
+                getDBTRunResults(hook)
                 return c.SendStatus(200)
             } else {
-                getDBTRunResults(hook)
                 return c.SendStatus(200)
             }
         })
