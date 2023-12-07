@@ -271,7 +271,7 @@ func parseLogs(logStr string) ([]string, []string) {
 func postMessageThread(threadTS string, detail string) {
     err := godotenv.Load(".env")
     if err != nil {
-        log.Fatal(err)
+        log.Println(err)
     }
 
     token := os.Getenv("SLACK_AUTH_TOKEN")
@@ -299,7 +299,7 @@ func postMessageThread(threadTS string, detail string) {
 func postMessage(msg string) string {
     err := godotenv.Load(".env")
     if err != nil {
-        log.Fatal(err)
+        log.Println(err)
     }
 
     token := os.Getenv("SLACK_AUTH_TOKEN")
@@ -376,6 +376,10 @@ func main() {
             }
         })
 
-        app.Listen(":3000")
+        port := os.Getenv("PORT")
+        if port == "" {
+            port = "3000"
+        }
+        app.Listen(fmt.Sprintf(":%s", port))
     }
 }
