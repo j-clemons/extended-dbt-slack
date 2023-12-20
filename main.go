@@ -145,7 +145,7 @@ func parseDBTWebhook(webhook []byte) DBTRunWebhook {
 func getDBTRunResults(h DBTRunWebhook) {
     err := godotenv.Load(".env")
     if err != nil {
-        log.Fatal(err)
+        log.Println(err)
     }
 
     account_id := os.Getenv("DBT_ACCOUNT_ID")
