@@ -11,6 +11,9 @@ import (
     "encoding/json"
     "net/http"
     "net/url"
+    "crypto/hmac"
+    "crypto/sha256"
+    "encoding/hex"
 
     "github.com/joho/godotenv"
     "github.com/slack-go/slack"
@@ -131,14 +134,13 @@ type DBTRunResults struct {
 }
 
 func parseDBTWebhook(webhook []byte) DBTRunWebhook {
-    log.Println("Webhook received.")
-
     wh := DBTRunWebhook{}
     err := json.Unmarshal(webhook, &wh)
     if err != nil {
         log.Fatalf("Unmarshal error: %q", err)
     }
 
+    log.Println("Webhook body parsed.")
     return wh
 }
 
@@ -355,6 +357,20 @@ func cliParse() {
     postMessages(summary, details)
 }
 
+func validateWebhook(body []byte, auth string, whKey string) bool {
+    webhookKey := []byte(whKey)
+
+    h := hmac.New(sha256.New, webhookKey)
+    h.Write(body)
+    sha256Hash := h.Sum(nil)
+    sha256Hex := hex.EncodeToString(sha256Hash)
+
+    if sha256Hex == auth {
+        return true
+    }
+    return false
+}
+
 func main() {
     cliInput := flag.Bool("cli", false, "Process stdin from cli")
 
@@ -366,6 +382,12 @@ func main() {
         app := fiber.New()
 
         app.Post("/dbtrunwebhook", func(c *fiber.Ctx) error {
+            if validateWebhook(c.Body(), c.Get("Authorization"), os.Getenv("WEBHOOK_KEY")) == true {
+                log.Println("Webhook validated successfully.")
+            } else {
+                return c.SendStatus(401)
+            }
+
             hook := parseDBTWebhook(c.Body())
 
             if hook.Data.RunStatus == "Errored" {
