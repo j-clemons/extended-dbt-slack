@@ -1,4 +1,4 @@
-module github.com/j-clemons/better-dbt-slack
+module github.com/j-clemons/extended-dbt-slack
 
 go 1.21.3
 
