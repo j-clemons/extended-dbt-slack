@@ -247,6 +247,7 @@ func parseLogs(logStr string) ([]string, []string) {
     summaryLines := []string{}
 
     summaryRegexp := []string{
+        `(?:ERROR STALE ).*?(?:\.\w{1,})`,
         `(?:ERROR creating).*?(?:\.\w{1,})`,
         `(?:FAIL).*?(?:\_\w{1,})`,
     }
