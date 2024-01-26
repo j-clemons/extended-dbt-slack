@@ -23,3 +23,6 @@ __Required Bot Token Scopes:__
 `DBT_AUTH_TOKEN` - dbt Cloud API token. Used for retrieving run details.
 
 `WEBHOOK_KEY` - Key provided by dbt Cloud when setting up the webhook. Used for validating the webhook upon receipt.
+
+## Optional Environment Variables
+`NOTIFY_NON_FAILING_ERRORS` - Set to `yes` to notify for errors that do not cause the run to error. (E.g. Source Freshness)

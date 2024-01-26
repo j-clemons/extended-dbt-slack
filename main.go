@@ -194,6 +194,17 @@ func getDBTRunResults(h DBTRunWebhook) {
         log.Fatalf("Unmarshal error: %q", err)
     }
 
+    errorCount := 0
+    for _, d := range r.Data.RunSteps {
+        if d.StatusHumanized != "Success" {
+            errorCount = 1
+            break
+        }
+    }
+    if errorCount == 0 {
+        return
+    }
+
     summaryOut := []string{}
     summaryL1 := fmt.Sprintf(
         `
@@ -232,10 +243,9 @@ func getDBTRunResults(h DBTRunWebhook) {
                 d.DurationHumanized,
             )
             summaryOut = append(summaryOut, stepSummary)
+            _, details := parseLogs(d.Logs)
+            detailsOut = append(detailsOut, details...)
         }
-
-        _, details := parseLogs(d.Logs)
-        detailsOut = append(detailsOut, details...)
     }
 
     if len(summaryOut) > 0 {
@@ -391,7 +401,7 @@ func main() {
 
             hook := parseDBTWebhook(c.Body())
 
-            if hook.Data.RunStatus == "Errored" {
+            if hook.Data.RunStatus == "Errored" || os.Getenv("NOTIFY_NON_FAILING_ERRORS") == "yes" {
                 getDBTRunResults(hook)
                 return c.SendStatus(200)
             } else {
