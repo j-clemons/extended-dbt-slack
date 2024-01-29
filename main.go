@@ -253,22 +253,34 @@ func getDBTRunResults(h DBTRunWebhook) {
     }
 }
 
+func processRegexpSlice(processStr string, regexpSlice []string) []string {
+    returnSlice := []string{}
+
+    for i := range regexpSlice {
+        r, _ := regexp.Compile(regexpSlice[i])
+        returnSlice = append(returnSlice, r.FindAllString(processStr, -1)...)
+    }
+
+    return returnSlice
+}
+
 func parseLogs(logStr string) ([]string, []string) {
-    summaryLines := []string{}
+    summaryLines := processRegexpSlice(
+        logStr,
+        []string{
+            `(?:ERROR STALE ).*?(?:\.\w{1,})`,
+            `(?:ERROR creating).*?(?:\.\w{1,})`,
+            `(?:FAIL).*?(?:\_\w{1,})`,
+        },
+    )
 
-    summaryRegexp := []string{
-        `(?:ERROR STALE ).*?(?:\.\w{1,})`,
-        `(?:ERROR creating).*?(?:\.\w{1,})`,
-        `(?:FAIL).*?(?:\_\w{1,})`,
-    }
-
-    for sr := range summaryRegexp {
-        r, _ := regexp.Compile(summaryRegexp[sr])
-        summaryLines = append(summaryLines, r.FindAllString(logStr, -1)...)
-    }
-
-    details, _ := regexp.Compile(`(.*(Failure|Error) in .*\n.*\n.*)`)
-    detailLines := details.FindAllString(logStr, -1)
+    detailLines := processRegexpSlice(
+        logStr,
+        []string{
+            `(?:ERROR STALE ).*?(?:\.\w{1,})`,
+            `(.*(Failure|Error) in .*\n.*\n.*)`,
+        },
+    )
 
     for i := range summaryLines {
         summaryLines[i] = stripANSIColors(summaryLines[i])
