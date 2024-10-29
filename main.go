@@ -1,23 +1,24 @@
 package main
 
 import (
-    "flag"
-    "fmt"
-    "os"
-    "regexp"
-    "log"
-    "io"
-    "strings"
-    "encoding/json"
-    "net/http"
-    "net/url"
-    "crypto/hmac"
-    "crypto/sha256"
-    "encoding/hex"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"net/url"
+	"os"
+	"regexp"
+	"strconv"
+	"strings"
 
-    "github.com/joho/godotenv"
-    "github.com/slack-go/slack"
-    "github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2"
+	"github.com/joho/godotenv"
+	"github.com/slack-go/slack"
 )
 
 type DBTRunWebhook struct {
@@ -362,10 +363,20 @@ func stripANSIColors(str string) string {
 }
 
 func postMessages(summary []string, details []string) {
+    msgLimit, err := strconv.Atoi(os.Getenv("MESSAGE_LIMIT"))
+    if err != nil  {
+        msgLimit = 50
+    }
+
     ts := postMessage(formatMessages(summary))
 
     for i := range details {
-        postMessageThread(ts, details[i])
+        if i > (msgLimit - 1) {
+            postMessageThread(ts, fmt.Sprintf("Errors exceeded limit of %d! Check source logs for additional details.", msgLimit))
+            break
+        } else {
+            postMessageThread(ts, details[i])
+        }
     }
 }
 

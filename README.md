@@ -26,3 +26,5 @@ __Required Bot Token Scopes:__
 
 ## Optional Environment Variables
 `NOTIFY_NON_FAILING_ERRORS` - Set to `yes` to notify for errors that do not cause the run to error. (E.g. Source Freshness)
+
+`MESSAGE_LIMIT` - Maximum number of error messages to send into a single Slack thread. Prevents overflow of threads. Defaults to 50.
